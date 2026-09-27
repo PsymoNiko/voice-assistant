@@ -29,6 +29,7 @@ services:
     container_name: litellm
     restart: unless-stopped
     profiles: ["llm"]
+    cpus: ${LITELLM_CPUS:-10}
     command:
       - "--config"
       - "/app/config.yaml"
@@ -105,6 +106,7 @@ services:
     image: ghcr.io/ai-dock/comfyui:latest-cuda
     profiles: ["image-gen"]
     restart: unless-stopped
+    cpus: ${COMFYUI_CPUS:-10}
     environment:
       COMFYUI_ARGS: --lowvram
       WEB_ENABLE_AUTH: "false"
@@ -120,6 +122,139 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    networks:
+      - me_network
+
+  n8n:
+    image: n8nio/n8n:latest
+    profiles: ["automation"]
+    restart: unless-stopped
+    depends_on:
+      litellm:
+        condition: service_started
+      sandbox-api:
+        condition: service_healthy
+      searxng:
+        condition: service_started
+    environment:
+      TZ: ${GENERIC_TIMEZONE:-Etc/UTC}
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-Etc/UTC}
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      N8N_EDITOR_BASE_URL: http://localhost:5678/
+      WEBHOOK_URL: http://localhost:5678/
+      N8N_SECURE_COOKIE: "false"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_INSTANCE_AI_SANDBOX_ENABLED: "true"
+      N8N_INSTANCE_AI_SANDBOX_PROVIDER: n8n-sandbox
+      N8N_INSTANCE_AI_SANDBOX_API_URL: http://sandbox-api:8080
+      N8N_INSTANCE_AI_MODEL: fast
+      N8N_INSTANCE_AI_MODEL_URL: http://litellm:4000/v1
+      N8N_INSTANCE_AI_MODEL_API_KEY: ${LITELLM_MASTER_KEY:?Set LITELLM_MASTER_KEY in .env}
+      N8N_INSTANCE_AI_THINKING_ENABLED: "false"
+      N8N_SANDBOX_SERVICE_URL: http://sandbox-api:8080
+      N8N_SANDBOX_SERVICE_API_KEY: ${N8N_SANDBOX_SERVICE_API_KEY:-}
+      N8N_INSTANCE_AI_SEARXNG_URL: http://searxng:8080
+    ports:
+      - "127.0.0.1:5678:5678"
+    volumes:
+      - n8n-data:/home/node/.n8n
+    networks:
+      - me_network
+
+  searxng:
+    image: searxng/searxng:latest
+    profiles: ["automation"]
+    restart: unless-stopped
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-}
+    volumes:
+      - ./config/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    networks:
+      - me_network
+
+  sandbox-certs:
+    image: ghcr.io/n8n-io/n8n-sandbox-service-api:${N8N_SANDBOX_VERSION:-1.3.4}
+    profiles: ["automation"]
+    user: "0:0"
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        if [ -z "$$N8N_SANDBOX_SERVICE_API_KEY" ] ||
+        [ -z "$$N8N_SANDBOX_RUNNER_REGISTRATION_TOKEN" ] ||
+        [ -z "$$N8N_SANDBOX_RUNNER_API_KEY" ]; then
+        echo "Set N8N_SANDBOX_SERVICE_API_KEY, N8N_SANDBOX_RUNNER_REGISTRATION_TOKEN, and N8N_SANDBOX_RUNNER_API_KEY in .env" >&2;
+        exit 1;
+        fi;
+        bootstrap-mtls.sh --out-dir /tls --api-san sandbox-api
+        --control-san-prefix sandbox-runner --world-readable &&
+        chown -R sandbox-api:sandbox-api /tls/api && chmod -R a+rX /tls
+    environment:
+      NUM_RUNNERS: "1"
+      N8N_SANDBOX_SERVICE_API_KEY: ${N8N_SANDBOX_SERVICE_API_KEY:-}
+      N8N_SANDBOX_RUNNER_REGISTRATION_TOKEN: ${N8N_SANDBOX_RUNNER_REGISTRATION_TOKEN:-}
+      N8N_SANDBOX_RUNNER_API_KEY: ${N8N_SANDBOX_RUNNER_API_KEY:-}
+    volumes:
+      - n8n-sandbox-tls:/tls
+    networks:
+      - me_network
+
+  sandbox-api:
+    image: ghcr.io/n8n-io/n8n-sandbox-service-api:${N8N_SANDBOX_VERSION:-1.3.4}
+    profiles: ["automation"]
+    restart: unless-stopped
+    depends_on:
+      sandbox-certs:
+        condition: service_completed_successfully
+    environment:
+      SANDBOX_API_KEYS: ${N8N_SANDBOX_SERVICE_API_KEY:-}
+      SANDBOX_API_RUNNER_REGISTRATION_TOKEN: ${N8N_SANDBOX_RUNNER_REGISTRATION_TOKEN:-}
+      SANDBOX_API_RUNNER_API_KEY: ${N8N_SANDBOX_RUNNER_API_KEY:-}
+      SANDBOX_API_GRPC_TLS_CERT_FILE: /tls/api/grpc-server.crt
+      SANDBOX_API_GRPC_TLS_KEY_FILE: /tls/api/grpc-server.key
+      SANDBOX_API_GRPC_TLS_CLIENT_CA_FILE: /tls/api/ca.crt
+      SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_CA_FILE: /tls/api/ca.crt
+      SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_CERT_FILE: /tls/api/control-grpc-api-client.crt
+      SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_KEY_FILE: /tls/api/control-grpc-api-client.key
+      SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_SERVER_NAME: sandbox-runner-1
+    volumes:
+      - n8n-sandbox-tls:/tls:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - me_network
+
+  sandbox-runner-1:
+    image: ghcr.io/n8n-io/n8n-sandbox-service-runner-dind:${N8N_SANDBOX_VERSION:-1.3.4}
+    profiles: ["automation"]
+    privileged: true
+    restart: unless-stopped
+    depends_on:
+      sandbox-api:
+        condition: service_healthy
+    environment:
+      SANDBOX_RUNNER_API_GRPC_ADDR: sandbox-api:9090
+      SANDBOX_RUNNER_HTTP_BASE_URL: https://sandbox-runner-1:8080
+      SANDBOX_RUNNER_CONTROL_GRPC_LISTEN_ADDR: ":9091"
+      SANDBOX_RUNNER_CONTROL_GRPC_ADVERTISE_ADDR: sandbox-runner-1:9091
+      SANDBOX_RUNNER_ID: runner-1
+      SANDBOX_RUNNER_DOCKER_SANDBOX_IMAGE: ghcr.io/n8n-io/n8n-sandbox-service-sandbox:${N8N_SANDBOX_VERSION:-1.3.4}
+      SANDBOX_RUNNER_REGISTRATION_TOKEN: ${N8N_SANDBOX_RUNNER_REGISTRATION_TOKEN:-}
+      SANDBOX_RUNNER_API_KEYS: ${N8N_SANDBOX_RUNNER_API_KEY:-}
+      SANDBOX_RUNNER_REGISTRATION_GRPC_CA_FILE: /tls/runner/ca.crt
+      SANDBOX_RUNNER_REGISTRATION_GRPC_CERT_FILE: /tls/runner/grpc-client.crt
+      SANDBOX_RUNNER_REGISTRATION_GRPC_KEY_FILE: /tls/runner/grpc-client.key
+      SANDBOX_RUNNER_REGISTRATION_GRPC_SERVER_NAME: sandbox-api
+      SANDBOX_RUNNER_CONTROL_GRPC_TLS_CERT_FILE: /tls/runner/control-grpc-server.crt
+      SANDBOX_RUNNER_CONTROL_GRPC_TLS_KEY_FILE: /tls/runner/control-grpc-server.key
+      SANDBOX_RUNNER_CONTROL_GRPC_TLS_CLIENT_CA_FILE: /tls/runner/ca.crt
+    volumes:
+      - n8n-sandbox-tls:/tls:ro
     networks:
       - me_network
 
@@ -199,6 +334,8 @@ volumes:
   qdrant-data:
   #rustfs-data:
   open-webui-data:
+  n8n-data:
+  n8n-sandbox-tls:
 
 
 networks:
