@@ -9,42 +9,137 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    networks:
+      - me_network
 
-  rustfs:
-    image: rustfs/rustfs:latest
-    environment:
-      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-voice-assistant}
-      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-change-me-in-development}
-    command: /data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - rustfs-data:/data
+  #rustfs:
+  #  image: rustfs/rustfs:latest
+  #  environment:
+  #    RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-voice-assistant}
+  #    RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-change-me-in-development}
+  #  command: /data
+  #  ports:
+  #    - "9000:9000"
+  #    - "9001:9001"
+  #  volumes:
+  #    - rustfs-data:/data
 
   litellm:
-    image: ghcr.io/berriai/litellm:main-stable
+    image: docker.litellm.ai/berriai/litellm-database:latest
+    container_name: litellm
+    restart: unless-stopped
     profiles: ["llm"]
-    command: ["--config", "/app/config.yaml", "--port", "4000"]
-    environment:
-      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-local}
-    volumes:
-      - ./config/litellm.yaml:/app/config.yaml:ro
+    command:
+      - "--config"
+      - "/app/config.yaml"
+      - "--port"
+      - "4000"
+      - "--host"
+      - "0.0.0.0"
+    env_file:
+      - .env
     ports:
       - "4000:4000"
+    environment:
+      LITELLM_SALT_KEY: "yA0WTWW3GfCCQstFZwVqcsMMyMSdXedHU8JvncyOT9s="
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      UI_USERNAME: "admin"
+      UI_PASSWORD: "09102001647aA@"
+      DATABASE_URL: postgresql://postgres:mysecretpassword@my-postgres:5432/litellm
+      STORE_MODEL_IN_DB: "True"
+    volumes:
+      - ./config/litellm.yaml:/app/config.yaml:ro
+    #extra_hosts:
+    #  - "host.docker.internal:host-gateway"
+    networks:
+      - me_network
 
+  #litellm:
+  #  image: ghcr.io/berriai/litellm:main-stable
+  #  profiles: ["llm"]
+  #  command: ["--config", "/app/config.yaml", "--port", "4000"]
+  #  environment:
+  #    LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-local}
+  #  volumes:
+  #    - ./config/litellm.yaml:/app/config.yaml:ro
+  #  ports:
+  #    - "4000:4000"
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     profiles: ["ui"]
     environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      WEBUI_AUTH: "True"
       OPENAI_API_BASE_URL: http://litellm:4000/v1
-      OPENAI_API_KEY: ${LITELLM_MASTER_KEY:-sk-local}
-    depends_on:
-      - litellm
+      OPENAI_API_KEY: ${LITELLM_MASTER_KEY}
+      ENABLE_AUTOMATIONS: "false"
+      ENABLE_FOLLOW_UP_GENERATION: "false"
+      ENABLE_TAGS_GENERATION: "false"
+      ENABLE_TITLE_GENERATION: "false"
+      ENABLE_MEMORIES: "false"
+      ENABLE_MEMORY_SYSTEM_CONTEXT: "false"
+      VECTOR_DB: qdrant
+      QDRANT_URI: http://qdrant:6333
+      RAG_EMBEDDING_ENGINE: ollama
+      RAG_EMBEDDING_MODEL: nomic-embed-text
     ports:
-      - "3000:8080"
+      - "127.0.0.1:3008:8080"
     volumes:
       - open-webui-data:/app/backend/data
+    networks:
+      - me_network
+    depends_on:
+      - litellm
+      - qdrant
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    profiles: ["ui"]
+    restart: unless-stopped
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks:
+      - me_network
+
+  comfyui:
+    image: ghcr.io/ai-dock/comfyui:latest-cuda
+    profiles: ["image-gen"]
+    restart: unless-stopped
+    environment:
+      COMFYUI_ARGS: --lowvram
+      WEB_ENABLE_AUTH: "false"
+    ports:
+      - "127.0.0.1:8188:8188"
+    volumes:
+      - ./models/comfyui/models:/opt/ComfyUI/models
+      - ./models/comfyui/output:/opt/ComfyUI/output
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - me_network
+
+ # open-webui:
+ #   image: ghcr.io/open-webui/open-webui:main
+ #   profiles: ["ui"]
+ #   environment:
+ #     - OLLAMA_BASE_URL=http://localhost:11434
+ #     - WEBUI_AUTH=False
+ #     - OPENAI_API_BASE_URL=http://127.0.0.1:4000/v1
+ #     - OPENAI_API_KEY=${LITELLM_MASTER_KEY:-sk-local}
+ #     #- OPENAI_API_KEY=sk-06_p3mmokKYrlX2zabve_A
+ #   #depends_on:
+ #   #  - litellm
+ #   ports:
+ #     - "3008:8080"
+ #   volumes:
+ #     - open-webui-data:/app/backend/data
+ #   networks:
+ #     - me_network
 
   gateway:
     build:
@@ -53,19 +148,38 @@ services:
     env_file: .env
     environment:
       REDIS_URL: redis://redis:6379/0
+      TTS_AUDIO_DIR: /tmp/tts-audio
+      PUBLIC_BASE_URL: http://localhost:8388
+    volumes:
+      - tts-audio:/tmp/tts-audio
     depends_on:
       redis:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      - "8388:8080"
+    networks:
+      - me_network
 
   worker:
     build:
       context: .
-      target: worker
+      target: ${TTS_DOCKER_TARGET:-worker}
     env_file: .env
     environment:
       REDIS_URL: redis://redis:6379/0
+      TTS_AUDIO_DIR: /tmp/tts-audio
+      TTS_ENGINE: ${TTS_ENGINE:-espeak}
+      PUBLIC_BASE_URL: http://localhost:8388
+      CHATTERBOX_DEVICE: cuda
+      CHATTERBOX_REFERENCE_DIR: /app/voices
+      RUSTFS_ENDPOINT: ${RUSTFS_ENDPOINT:-http://rustfs:9000}
+      RUSTFS_PUBLIC_ENDPOINT: ${RUSTFS_PUBLIC_ENDPOINT:-http://localhost:9000}
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      RUSTFS_BUCKET: ${RUSTFS_BUCKET:-ai-audio}
+    volumes:
+      - tts-audio:/tmp/tts-audio
+      - ./voices:/app/voices:ro
     depends_on:
       redis:
         condition: service_healthy
@@ -76,8 +190,18 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    networks:
+      - me_network
 
 volumes:
   redis-data:
-  rustfs-data:
+  tts-audio:
+  qdrant-data:
+  #rustfs-data:
   open-webui-data:
+
+
+networks:
+  me_network:
+    external: true
+    name: me_network

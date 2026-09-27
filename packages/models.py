@@ -8,6 +8,7 @@ class TTSJobRequest(BaseModel):
     announcement_voice_id: str = "system"
     conversation_id: str | None = None
     message_id: str | None = None
+    format: str = "mp3"
 
 
 class TTSJob(BaseModel):
@@ -16,5 +17,8 @@ class TTSJob(BaseModel):
     language: str
     voice_id: str
     text: str
+    conversation_id: str | None = None
+    message_id: str | None = None
+    format: str = "mp3"
     audio_url: str | None = None
     error: str | None = None

@@ -1,0 +1,21 @@
+Metadata-Version: 2.4
+Name: local-voice-assistant
+Version: 0.1.0
+Summary: Local asynchronous multilingual voice assistant pipeline
+Requires-Python: >=3.11
+License-File: LICENSE
+Requires-Dist: fastapi<1,>=0.111
+Requires-Dist: boto3<2,>=1.34
+Requires-Dist: langdetect<2,>=1.0.9
+Requires-Dist: markdown-it-py<4,>=3
+Requires-Dist: pydantic-settings<3,>=2.2
+Requires-Dist: redis<6,>=5
+Requires-Dist: uvicorn[standard]<1,>=0.30
+Provides-Extra: dev
+Requires-Dist: httpx<1,>=0.27; extra == "dev"
+Requires-Dist: pytest<9,>=8; extra == "dev"
+Requires-Dist: ruff<1,>=0.5; extra == "dev"
+Provides-Extra: tts
+Requires-Dist: chatterbox-tts<1,>=0.1; extra == "tts"
+Requires-Dist: torchaudio<3,>=2.4; extra == "tts"
+Dynamic: license-file

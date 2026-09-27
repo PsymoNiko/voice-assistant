@@ -1,8 +1,43 @@
 model_list:
-  - model_name: local-model
+  - model_name: coding
     litellm_params:
-      model: openai/local-model
-      api_base: http://host.docker.internal:11434/v1
-      api_key: not-needed
+      model: ollama/qwen2.5-coder:7b
+      api_base: os.environ/OLLAMA_API_BASE
+
+  - model_name: vision
+    litellm_params:
+      model: ollama/qwen2.5vl:3b
+      api_base: os.environ/OLLAMA_API_BASE
+
+  - model_name: fast
+    litellm_params:
+      model: ollama/llama3.2:3b
+      api_base: os.environ/OLLAMA_API_BASE
+
+  - model_name: embeddings
+    litellm_params:
+      model: ollama/nomic-embed-text
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      mode: embedding
+
+  - model_name: gemini
+    litellm_params:
+      model: gemini/gemini-2.0-flash
+      api_key: os.environ/GEMINI_API_KEY
+
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
+
+litellm_settings:
+  json_logs: true
+  set_verbose: false
+  cache: false
+  cache_params:
+    type: qdrant-semantic
+    qdrant_api_base: os.environ/QDRANT_API_BASE
+    qdrant_api_key: os.environ/QDRANT_API_KEY
+    qdrant_collection_name: litellm_memory
+    qdrant_semantic_cache_embedding_model: embeddings
+    similarity_threshold: 0.8
+    vector_size: 768
