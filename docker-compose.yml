@@ -28,7 +28,7 @@ services:
     image: docker.litellm.ai/berriai/litellm-database:latest
     container_name: litellm
     restart: unless-stopped
-    profiles: ["llm"]
+    profiles: ["llm", "ui", "automation"]
     cpus: ${LITELLM_CPUS:-10}
     command:
       - "--config"
@@ -68,6 +68,7 @@ services:
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     profiles: ["ui"]
+    restart: unless-stopped
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
       WEBUI_AUTH: "True"
@@ -130,8 +131,8 @@ services:
     profiles: ["automation"]
     restart: unless-stopped
     depends_on:
-      litellm:
-        condition: service_started
+      #litellm:
+      #  condition: service_started
       sandbox-api:
         condition: service_healthy
       searxng:
@@ -139,17 +140,17 @@ services:
     environment:
       TZ: ${GENERIC_TIMEZONE:-Etc/UTC}
       GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-Etc/UTC}
-      N8N_HOST: localhost
+      N8N_HOST: n8n.localhost
       N8N_PORT: 5678
       N8N_PROTOCOL: http
-      N8N_EDITOR_BASE_URL: http://localhost:5678/
-      WEBHOOK_URL: http://localhost:5678/
+      N8N_EDITOR_BASE_URL: https://n8n.localhost/
+      WEBHOOK_URL: https://n8n.localhost
       N8N_SECURE_COOKIE: "false"
       N8N_DIAGNOSTICS_ENABLED: "false"
       N8N_INSTANCE_AI_SANDBOX_ENABLED: "true"
       N8N_INSTANCE_AI_SANDBOX_PROVIDER: n8n-sandbox
       N8N_INSTANCE_AI_SANDBOX_API_URL: http://sandbox-api:8080
-      N8N_INSTANCE_AI_MODEL: fast
+      N8N_INSTANCE_AI_MODEL: coding
       N8N_INSTANCE_AI_MODEL_URL: http://litellm:4000/v1
       N8N_INSTANCE_AI_MODEL_API_KEY: ${LITELLM_MASTER_KEY:?Set LITELLM_MASTER_KEY in .env}
       N8N_INSTANCE_AI_THINKING_ENABLED: "false"
@@ -179,6 +180,7 @@ services:
     profiles: ["automation"]
     user: "0:0"
     entrypoint: ["sh", "-c"]
+    restart: unless-stopped
     command:
       - >-
         if [ -z "$$N8N_SANDBOX_SERVICE_API_KEY" ] ||
@@ -280,6 +282,7 @@ services:
     build:
       context: .
       target: gateway
+    restart: unless-stopped
     env_file: .env
     environment:
       REDIS_URL: redis://redis:6379/0
@@ -300,6 +303,7 @@ services:
       context: .
       target: ${TTS_DOCKER_TARGET:-worker}
     env_file: .env
+    restart: unless-stopped
     environment:
       REDIS_URL: redis://redis:6379/0
       TTS_AUDIO_DIR: /tmp/tts-audio
