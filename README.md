@@ -60,6 +60,23 @@ In **Workspace > Knowledge**, create a knowledge base and upload reference docum
 
 The Open WebUI database volume persists settings and user data. If this stack already has an `open-webui-data` volume, review **Admin Settings > Documents** for the Qdrant vector database and Ollama embedding model; don't remove the volume to apply config changes, since that would delete chats and workspace data.
 
+### Route LiteLLM's Gemini requests through a host proxy
+
+Set these in `.env` (replace `10808` if your proxy listens on another port):
+
+```dotenv
+LITELLM_HTTP_PROXY=http://host.docker.internal:10808
+LITELLM_HTTPS_PROXY=http://host.docker.internal:10808
+```
+
+Compose maps `host.docker.internal` to the host gateway for Linux containers and passes these values to LiteLLM. The proxy must accept connections from Docker containers; a proxy bound only to the host's `127.0.0.1` will not be reachable this way. Configure it to listen on a Docker-reachable host interface and restrict access with your firewall rather than exposing an unrestricted proxy. Then recreate LiteLLM:
+
+```bash
+docker compose --profile llm up -d --force-recreate litellm
+```
+
+Leave both proxy values empty to connect directly. A proxy only changes LiteLLM's outbound network route; it does not change the Gemini API key or model configuration.
+
 ## OpenCode frontend agent
 
 The project `opencode.json` uses LiteLLM's `coding` model group by default and keeps direct Ollama available as an alternative. `.opencode/agents/frontend.md` defines the frontend primary agent; reusable design, accessibility, and testing guidance lives under `.opencode/skills/`. These are OpenCode client features, while LiteLLM only provides model inference.
