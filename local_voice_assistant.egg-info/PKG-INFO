@@ -18,4 +18,6 @@ Requires-Dist: ruff<1,>=0.5; extra == "dev"
 Provides-Extra: tts
 Requires-Dist: chatterbox-tts<1,>=0.1; extra == "tts"
 Requires-Dist: torchaudio<3,>=2.4; extra == "tts"
+Provides-Extra: research
+Requires-Dist: mcp<2,>=1.9; extra == "research"
 Dynamic: license-file

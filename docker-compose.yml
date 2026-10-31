@@ -49,13 +49,13 @@ services:
       DATABASE_URL: postgresql://postgres:mysecretpassword@my-postgres:5432/litellm
       STORE_MODEL_IN_DB: "True"
 
-      HTTP_PROXY: ${LITELLM_HTTP_PROXY:-}
-      HTTPS_PROXY: ${LITELLM_HTTPS_PROXY:-}
-      NO_PROXY: ${LITELLM_NO_PROXY:-localhost,127.0.0.1,litellm,redis,db}
+      #HTTP_PROXY: ${LITELLM_HTTP_PROXY:-}
+      #HTTPS_PROXY: ${LITELLM_HTTPS_PROXY:-}
+      #NO_PROXY: ${LITELLM_NO_PROXY:-localhost,127.0.0.1,litellm,redis,db}
     volumes:
       - ./config/litellm.yaml:/app/config.yaml:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    #extra_hosts:
+    #  - "host.docker.internal:host-gateway"
     networks:
       - me_network
 
@@ -131,7 +131,8 @@ services:
       - me_network
 
   n8n:
-    image: n8nio/n8n:latest
+    #image: n8nio/n8n:latest
+    image: docker.n8n.io/n8nio/n8n:latest
     profiles: ["automation"]
     restart: unless-stopped
     depends_on:

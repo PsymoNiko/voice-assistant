@@ -27,5 +27,27 @@
         }
       }
     }
+  },
+  "mcp": {
+    "beans-cafe-research": {
+      "type": "local",
+      "command": [
+        "uv",
+        "run",
+        "--no-project",
+        "--with",
+        "mcp>=1.9,<2",
+        "python",
+        "-m",
+        "apps.cafe_research.mcp_server"
+      ],
+      "cwd": ".",
+      "environment": {
+        "CAFE_RESEARCH_DB_PATH": "../BEANS/beans-cafe-ads/data/cafe-research.sqlite3",
+        "CAFE_RESEARCH_PRODUCT_PROFILE": "../BEANS/beans-cafe-ads/memory/product-profile.json"
+      },
+      "enabled": true,
+      "timeout": 30000
+    }
   }
 }

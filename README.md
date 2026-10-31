@@ -79,7 +79,7 @@ Leave both proxy values empty to connect directly. A proxy only changes LiteLLM'
 
 ## OpenCode frontend agent
 
-The project `opencode.json` uses LiteLLM's `coding` model group by default and keeps direct Ollama available as an alternative. `.opencode/agents/frontend.md` defines the frontend primary agent; reusable design, accessibility, and testing guidance lives under `.opencode/skills/`. These are OpenCode client features, while LiteLLM only provides model inference.
+The project `opencode.json` uses LiteLLM's `coding` model group by default and keeps direct Ollama available as an alternative. `.opencode/agents/frontend.md` defines the frontend primary agent; reusable design, accessibility, testing, and cafe-research guidance lives under `.opencode/skills/`. These are OpenCode client features, while LiteLLM only provides model inference.
 
 Start LiteLLM and run OpenCode with the active LiteLLM container key loaded into the process environment. This avoids saving the key in the OpenCode config:
 
@@ -89,6 +89,12 @@ LITELLM_MASTER_KEY="$(docker inspect litellm --format '{{range .Config.Env}}{{pr
 ```
 
 In OpenCode, use `/models` to select `litellm/coding` or `ollama/qwen2.5-coder:7b`, and **Tab** to select the `frontend` primary agent. The project agent allows edits and asks before running shell commands. Keep API keys out of `opencode.json` and source control.
+
+### Cafe research MCP and persistent memory
+
+When OpenCode is started from this repository, `opencode.json` enables the local `beans-cafe-research` MCP server. It searches cafes/restaurants in one user-specified bounded area using OpenStreetMap, stores reviewed leads, menu summaries, logo URLs, and source links in `../BEANS/beans-cafe-ads/data/cafe-research.sqlite3`, and reads the product facts from that repository's `memory/product-profile.json`. The database and map-response cache are local and gitignored. If the repository layout changes, update the two `CAFE_RESEARCH_*` paths in `opencode.json`.
+
+Use `/cafe-growth-research` for the research and pitch workflow. Map data is discovery-only; verify current menus, logos, and contact details against official business sources. The tool does not crawl the world, download logo artwork, or send outreach. Follow the OpenStreetMap public-service limits and attribution documented in `../BEANS/beans-cafe-ads/README.md`. This MCP is for OpenCode and does not enable tools or memory in the Open WebUI voice runtime.
 
 Create and poll a TTS job:
 

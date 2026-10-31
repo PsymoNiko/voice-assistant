@@ -11,6 +11,9 @@ httpx<1,>=0.27
 pytest<9,>=8
 ruff<1,>=0.5
 
+[research]
+mcp<2,>=1.9
+
 [tts]
 chatterbox-tts<1,>=0.1
 torchaudio<3,>=2.4

@@ -2,6 +2,10 @@ LICENSE
 README.md
 pyproject.toml
 apps/__init__.py
+apps/cafe_research/__init__.py
+apps/cafe_research/mcp_server.py
+apps/cafe_research/osm.py
+apps/cafe_research/store.py
 apps/gateway/__init__.py
 apps/gateway/main.py
 apps/worker/__init__.py
@@ -16,4 +20,5 @@ packages/__init__.py
 packages/language.py
 packages/models.py
 packages/response_processor.py
+tests/test_cafe_research.py
 tests/test_pipeline.py
