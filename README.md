@@ -1,5 +1,7 @@
 # Local Voice Assistant
 
+[![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/PsymoNiko/badge.svg)](https://hub.xerj.org/contributors/PsymoNiko)
+
 A local/self-hosted multilingual voice assistant foundation.
 
 ## Quick start
